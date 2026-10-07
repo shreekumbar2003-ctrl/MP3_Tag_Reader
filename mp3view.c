@@ -61,24 +61,26 @@ Status read_tags(ViewInfo *viewInfo)
     char *data;
 
     char *supported_tags[] ={"TIT2","TPE1","TALB","TYER","TCON","COMM"};
-    char *display_names[]={"Title","Artist","Album","Year","Genre","Comment"};
+    char *display_names[]={"Title","Artist","Album","Year","Content","Comment"};
 
     /* Move offset to 10th position */
     fseek(viewInfo->fptr_mp3, 10, SEEK_SET);
-
-    printf("------------------------------------------------------------\n");
-    printf("Sl.no\t\tTAG\t\tContent\n");
-    printf("------------------------------------------------------------\n");
 
     /* Read 6 tags */
     for (i = 0; i < 6; i++)
     {
         /* Read tag - 4 bytes */
-        fread(tag, 1, 4, viewInfo->fptr_mp3);
+        if(fread(tag, 1, 4, viewInfo->fptr_mp3)!=4)
+        {
+            return e_failure;
+        }
         tag[4] = '\0';
 
         /* Read size - 4 bytes */
-        fread(size_buffer, 1, 4, viewInfo->fptr_mp3);
+        if(fread(size_buffer, 1, 4, viewInfo->fptr_mp3)!=4)
+        {
+            return e_failure;
+        }
 
         /* Convert Endianess of size */
         size = ((unsigned int)size_buffer[0] << 24) |
@@ -86,11 +88,13 @@ Status read_tags(ViewInfo *viewInfo)
                ((unsigned int)size_buffer[2] << 8) |
                size_buffer[3];
 
-        /* Skip 2 bytes of flags */
-        fseek(viewInfo->fptr_mp3, 2, SEEK_CUR);
+        /* Skip 3 bytes: 2 bytes flags + 1 byte null */
+        fseek(viewInfo->fptr_mp3, 3, SEEK_CUR);
 
-        /* Skip 1 byte of null */
-        fseek(viewInfo->fptr_mp3, 1, SEEK_CUR);
+        if(size==0)
+        {
+            return e_failure;
+        }
 
         data= malloc(size);
 
@@ -99,7 +103,11 @@ Status read_tags(ViewInfo *viewInfo)
             return e_failure;
         }
 
-        fread(data, 1, size - 1, viewInfo->fptr_mp3);
+        if(fread(data, 1, size - 1, viewInfo->fptr_mp3)!=size-1)
+        {
+            free(data);
+            return e_failure;
+        }
 
         data[size - 1] = '\0';
 
@@ -110,7 +118,7 @@ Status read_tags(ViewInfo *viewInfo)
         {
             if(strcmp(tag,supported_tags[j])==0)
             {
-                printf("%d\t\t%s\t\t%s\n",i + 1, display_names[i], data);
+                printf("%d\t\t%s\t\t%s\n",i + 1, display_names[j], data);
 
                 break;
             }
@@ -130,6 +138,10 @@ Status do_view(ViewInfo *viewInfo)
     printf("\n");
     printf("\t<-------------Started view------------->\n");
     printf("\n");
+
+    printf("------------------------------------------------------------\n");
+    printf("Sl.no\t\tTAG\t\tContent\n");
+    printf("------------------------------------------------------------\n");
 
     if (read_tags(viewInfo) == e_failure)
     {
